@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const SSLCommerzPayment = require('sslcommerz-lts')
+const SSLCommerzPayment = require("sslcommerz-lts");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 4000;
@@ -10,19 +10,11 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-
 // //rakib database
 // const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rxjjt.mongodb.net/?retryWrites=true&w=majority`;
 
-
-
 //rakib database
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@ema-jhondb.6pvsx17.mongodb.net/?retryWrites=true&w=majority&appName=ema-jhonDB`;
-
-
-
-
-
 
 // biplob database
 // const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vsymadz.mongodb.net/?retryWrites=true&w=majority`;
@@ -39,7 +31,7 @@ const client = new MongoClient(uri, {
 // payment info
 const store_id = process.env.PAYID;
 const store_passwd = process.env.PAYPASS;
-const is_live = false //true for live, false for sandbox
+const is_live = false; //true for live, false for sandbox
 
 async function run() {
   try {
@@ -67,6 +59,7 @@ async function run() {
     const tokenCollection = client.db("propertyDB").collection("allUserToken");
     const reviewCollection = client.db("propertyDB").collection("allRewiews");
     const bookingCollection = client.db("propertyDB").collection("mybooking");
+    const orderCollection = client.db("propertyDB").collection("order");
 
     // user related api:
 
@@ -203,12 +196,89 @@ async function run() {
       res.send(result);
     });
 
+    // make unique id
+    const tran_id = new ObjectId().toString();
 
     // post oder apis
-    app.post("/order",async(req,res)=>{
-      console.log(req.body)
-    })
+    app.post("/order", async (req, res) => {
+      //  console.log(req.body[0]?.houseName)
 
+      const order = req.body;
+      const data = {
+        total_amount: order[0]?.price,
+        currency: "BDT",
+        tran_id: tran_id, // use unique tran_id for each api call
+        success_url: `http://localhost:4000/payment/success/${tran_id}`,
+        fail_url: `http://localhost:4000/payment/fail/${tran_id}`,
+        cancel_url: "http://localhost:3030/cancel",
+        ipn_url: "http://localhost:3030/ipn",
+        shipping_method: "Courier",
+        product_name: order[0]?.houseName,
+        product_category: "Electronic",
+        product_profile: "general",
+        cus_name: "Customer Name",
+        cus_email: order[0]?.email,
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        ship_name: "Customer Name",
+        ship_add1: "Dhaka",
+        ship_add2: "Dhaka",
+        ship_city: "Dhaka",
+        ship_state: "Dhaka",
+        ship_postcode: 1000,
+        ship_country: "Bangladesh",
+      };
+      const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+      sslcz.init(data).then((apiResponse) => {
+        // Redirect the user to payment gateway
+        let GatewayPageURL = apiResponse.GatewayPageURL;
+        res.send({ url: GatewayPageURL });
+        // console.log('Redirecting to: ', GatewayPageURL)
+
+        const finalOrder = {
+          order,
+          paidStatus: false,
+          tranjactionId: tran_id,
+        };
+        const result = orderCollection.insertOne(finalOrder);
+      });
+
+      app.post("/payment/success/:tranId", async (req, res) => {
+        // console.log(req.params.tranId)
+
+        const result = await orderCollection.updateOne(
+          { tranjactionId: req.params.tranId },
+          {
+            $set: {
+              paidStatus: true,
+            },
+          }
+        );
+
+        if (result.modifiedCount > 0) {
+          res.redirect(
+            `http://localhost:5173/payment/success/${req.params.tranId}`
+          );
+        }
+      });
+
+      app.post("/payment/fail/:tranId", async (req, res) => {
+        const result = await orderCollection.deleteOne({
+          tranjactionId: req.params.tranId,
+        });
+        if (result.deletedCount) {
+          res.redirect(
+            `http://localhost:5173/payment/fail/${req.params.tranId}`
+          );
+        }
+      });
+    });
 
     app.get("/properties", async (req, res) => {
       const page = parseInt(req.query.page);
@@ -231,30 +301,21 @@ async function run() {
       res.send({ propertyPerPage, allProperty });
     });
 
-
     app.get("/allProperties/filterByPrice", async (req, res) => {
-      const {minPrice,maxPrice}=req.query;
+      const { minPrice, maxPrice } = req.query;
 
- 
- 
-      
-    
       const allProperty = await addPropertyCollection.find({
-        $and:[
+        $and: [
           {
-            rent_price:{$gte:"5000"}
+            rent_price: { $gte: "5000" },
           },
           {
-            rent_price:{$lte:"1000"}
-          }
-        ]
-      })
-      res.send({allProperty });
-    
+            rent_price: { $lte: "1000" },
+          },
+        ],
+      });
+      res.send({ allProperty });
     });
-    
-   
-    
 
     app.get("/properties/:id", async (req, res) => {
       const id = req.params.id;
@@ -492,7 +553,7 @@ async function run() {
         const userEmail = req.query.email;
         if (!userEmail) {
           return res.status(400).json({ error: "Missing email parameter" });
- }
+        }
         const result = await bookingCollection.find({ userEmail }).toArray();
         res.json(result);
       } catch (error) {
