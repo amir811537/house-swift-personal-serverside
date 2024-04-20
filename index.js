@@ -7,7 +7,15 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 4000;
 
 // middleware:
-app.use(cors());
+
+
+app.use(
+    cors({
+        origin: [
+            'http://localhost:5173'
+        ],
+    }),
+);
 app.use(express.json());
 
 // //rakib database
@@ -517,6 +525,7 @@ async function run() {
       const result = await bookingCollection.findOne(query);
       res.send(result);
     });
+app.options('/mybooking/:id', cors()); // Handle OPTIONS preflight requests
 
     // update date
     app.patch(`/mybooking/:id`, async (req, res) => {
