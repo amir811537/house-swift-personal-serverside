@@ -8,14 +8,25 @@ const port = process.env.PORT || 4000;
 
 // middleware:
 
-
+// CORS middleware
 app.use(
-    cors({
-        origin: [
-            'http://localhost:5173'
-        ],
-    }),
+cors({
+origin: 'https://house-swift-web.netlify.app/',
+credentials: true, // Important for cookies, authorization headers with HTTPS
+methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+allowedHeaders: [
+"Origin",
+"Content-Type",
+"Accept",
+"Authorization",
+"X-Request-With",
+],
+})
 );
+
+
+
+
 app.use(express.json());
 
 // //rakib database
@@ -216,8 +227,8 @@ async function run() {
         total_amount: order[0]?.price,
         currency: "BDT",
         tran_id: tran_id, // use unique tran_id for each api call
-        success_url: `http://localhost:4000/payment/success/${tran_id}`,
-        fail_url: `http://localhost:4000/payment/fail/${tran_id}`,
+        success_url: `https://house-swift-web.netlify.app/payment/success/${tran_id}`,
+        fail_url: `https://house-swift-web.netlify.app/payment/fail/${tran_id}`,
         cancel_url: "http://localhost:3030/cancel",
         ipn_url: "http://localhost:3030/ipn",
         shipping_method: "Courier",
